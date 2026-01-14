@@ -231,6 +231,10 @@ java -jar target/cubrid-mcp-1.0.0-SNAPSHOT.jar
 }
 ```
 
+**⚠️ 중요: 경로에 공백이 있는 경우**
+
+JAR 파일 경로에 공백이 포함되어 있으면 Java가 파일을 찾지 못할 수 있습니다. 공백이 없는 경로로 JAR 파일을 복사하거나 이동하는 것을 권장합니다.
+
 3. Claude Desktop을 재시작합니다.
 
 #### Cursor IDE 설정
@@ -260,6 +264,30 @@ java -jar target/cubrid-mcp-1.0.0-SNAPSHOT.jar
   }
 }
 ```
+
+**⚠️ 중요: 경로에 공백이 있는 경우**
+
+JAR 파일 경로에 공백이 포함되어 있으면 Java가 파일을 찾지 못할 수 있습니다. 다음 방법 중 하나를 사용하세요:
+
+**방법 1: 공백이 없는 경로로 JAR 파일 복사 (권장)**
+```bash
+# Windows 예시
+copy "target\cubrid-mcp-1.0.0-SNAPSHOT.jar" "C:\cubrid-mcp\cubrid-mcp-1.0.0-SNAPSHOT.jar"
+```
+
+그리고 설정에서:
+```json
+"args": [
+  "-jar",
+  "C:/cubrid-mcp/cubrid-mcp-1.0.0-SNAPSHOT.jar"
+]
+```
+
+**방법 2: args 배열에서 따옴표 사용하지 않기**
+- ❌ 잘못된 예: `"\"D:/path with spaces/file.jar\""`
+- ✅ 올바른 예: `"D:/path with spaces/file.jar"`
+
+JSON 배열의 각 요소는 이미 문자열이므로 따옴표를 추가로 이스케이프하면 안 됩니다.
 
 ## 📚 API 문서
 
