@@ -1,0 +1,36 @@
+spring:
+  application:
+    name: cubrid-mcp
+
+# CUBRID 데이터베이스 설정
+# 환경변수로도 설정 가능: CUBRID_JDBC_URL, CUBRID_USER, CUBRID_PASSWORD
+cubrid:
+  jdbc:
+    # 형식: jdbc:cubrid:<host>:<port>:<db-name>:<user>:<password>:?charSet=utf-8
+    # 예시: jdbc:cubrid:localhost:33000:demodb:dba:password:?charSet=utf-8
+    url: jdbc:cubrid:localhost:33000:demodb:dba:password:?charSet=utf-8
+  user: dba
+  password: your_password_here
+  pool:
+    minimum-idle: 2
+    maximum-pool-size: 10
+    connection-timeout: 30000
+
+# SQL 정책 설정
+policy:
+  # 허용할 스키마 (현재 DB의 스키마 이름)
+  # CUBRID의 기본 스키마는 보통 "dba"입니다
+  allowed-schema: dba
+  # 하드 상한 (운영 안정성을 위한 서버 측 제한)
+  hard-max-rows: 10000      # 최대 행 수
+  hard-max-bytes: 20971520  # 최대 바이트 수 (20MB)
+  hard-timeout-ms: 30000     # 타임아웃 밀리초 (30초)
+
+# 로깅 설정
+logging:
+  level:
+    root: INFO
+    com.cubrid.mcp: DEBUG
+  # stderr로만 로깅 (stdout은 MCP 메시지 전용)
+  file:
+    name: cubrid-mcp.log

@@ -1,0 +1,152 @@
+// MCP 서버 테스트 스크립트 (Node.js)
+// 사용법: 
+// 1. 이 파일을 test-mcp-server.js로 복사
+// 2. 환경변수를 실제 DB 정보로 수정
+// 3. node test-mcp-server.js 실행
+
+const { spawn } = require('child_process');
+const readline = require('readline');
+
+console.log('=== CUBRID MCP 서버 테스트 ===\n');
+
+// 환경변수 설정 (실제 DB 정보로 수정하세요)
+process.env.CUBRID_JDBC_URL = 'jdbc:cubrid:localhost:33000:demodb:dba:password:?charSet=utf-8';
+process.env.CUBRID_USER = 'dba';
+process.env.CUBRID_PASSWORD = 'your_password';
+
+// MCP 서버 프로세스 시작
+const mcpServer = spawn('java', [
+    '-jar',
+    'target/cubrid-mcp-1.0.0-SNAPSHOT.jar'
+], {
+    stdio: ['pipe', 'pipe', 'pipe']
+});
+
+// stderr는 로그로 출력
+mcpServer.stderr.on('data', (data) => {
+    console.error('[LOG]', data.toString());
+});
+
+// stdout은 MCP 메시지
+const rl = readline.createInterface({
+    input: mcpServer.stdout,
+    output: process.stdout,
+    terminal: false
+});
+
+let messageId = 1;
+
+// MCP 메시지 전송 함수
+function sendMessage(method, params = {}) {
+    const message = {
+        jsonrpc: '2.0',
+        id: messageId++,
+        method: method,
+        params: params
+    };
+    
+    console.log('\n[→ 전송]', JSON.stringify(message, null, 2));
+    mcpServer.stdin.write(JSON.stringify(message) + '\n');
+}
+
+// 응답 수신 카운터
+let responseCount = 0;
+
+// 응답 수신 핸들러 (한 번만 등록)
+rl.on('line', (line) => {
+    responseCount++;
+    try {
+        const response = JSON.parse(line);
+        console.log('[← 수신]', JSON.stringify(response, null, 2));
+        
+        // 에러 체크
+        if (response.error) {
+            console.error(`[에러] 코드: ${response.error.code}, 메시지: ${response.error.message}`);
+        }
+    } catch (e) {
+        console.log('[← 수신 (비JSON)]', line);
+    }
+});
+
+// 서버 시작 대기 후 테스트 실행
+setTimeout(() => {
+    console.log('\n1. initialize 메시지 전송...');
+    sendMessage('initialize', {
+        protocolVersion: '2024-11-05',
+        capabilities: {},
+        clientInfo: {
+            name: 'test-client',
+            version: '1.0.0'
+        }
+    });
+    
+    setTimeout(() => {
+        console.log('\n2. tools/list 메시지 전송...');
+        sendMessage('tools/list');
+    }, 1000);
+    
+    setTimeout(() => {
+        console.log('\n3. resources/list 메시지 전송...');
+        sendMessage('resources/list');
+    }, 2000);
+    
+    setTimeout(() => {
+        console.log('\n4. tools/call - db.ping 실행...');
+        sendMessage('tools/call', {
+            name: 'db.ping',
+            arguments: {}
+        });
+    }, 3000);
+    
+    setTimeout(() => {
+        console.log('\n5. tools/call - db.listTables 실행...');
+        sendMessage('tools/call', {
+            name: 'db.listTables',
+            arguments: {
+                pattern: '%',
+                limit: 10
+            }
+        });
+    }, 4000);
+
+    setTimeout(() => {
+        console.log('\n6. tools/call - db.describeTable 실행 (첫 번째 테이블)...');
+        // 실제 테이블 이름으로 변경하세요
+        sendMessage('tools/call', {
+            name: 'db.describeTable',
+            arguments: {
+                table: 'your_table_name'
+            }
+        });
+    }, 5000);
+
+    setTimeout(() => {
+        console.log('\n7. tools/call - db.query 실행 (SELECT 쿼리)...');
+        // 실제 테이블 이름으로 변경하세요
+        sendMessage('tools/call', {
+            name: 'db.query',
+            arguments: {
+                sql: 'SELECT * FROM dba.your_table_name',
+                maxRows: 5
+            }
+        });
+    }, 6000);
+    
+    setTimeout(() => {
+        console.log('\n=== 테스트 완료 ===');
+        console.log(`총 ${responseCount}개의 응답을 받았습니다.`);
+        mcpServer.kill();
+        process.exit(0);
+    }, 10000);
+}, 2000);
+
+// 에러 처리
+mcpServer.on('error', (err) => {
+    console.error('프로세스 오류:', err);
+    process.exit(1);
+});
+
+mcpServer.on('exit', (code) => {
+    console.log(`\n프로세스 종료 (코드: ${code})`);
+    process.exit(code);
+});
