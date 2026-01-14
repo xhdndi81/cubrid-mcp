@@ -9,6 +9,9 @@ public class McpServerConfig {
     
     @Bean
     public ObjectMapper objectMapper() {
-        return new ObjectMapper();
+        ObjectMapper mapper = new ObjectMapper();
+        // null 필드는 JSON에 포함하지 않음 (이미 @JsonInclude로 처리되지만 명시적으로 설정)
+        mapper.setSerializationInclusion(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL);
+        return mapper;
     }
 }

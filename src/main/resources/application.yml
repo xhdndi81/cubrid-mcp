@@ -35,6 +35,10 @@ logging:
   level:
     root: INFO
     com.cubrid.mcp: DEBUG
+  # 콘솔(stdout) 로깅을 완전히 끄고 파일과 stderr만 사용하도록 설정
+  defaults:
+    console:
+      enabled: false
   # stderr로만 로깅 (stdout은 MCP 메시지 전용)
   file:
     name: cubrid-mcp.log

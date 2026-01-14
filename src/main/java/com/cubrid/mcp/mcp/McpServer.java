@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,7 +20,6 @@ import java.util.stream.Collectors;
 @Component
 public class McpServer {
     private static final Logger logger = LoggerFactory.getLogger(McpServer.class);
-    private static final Logger stdoutLogger = LoggerFactory.getLogger("STDOUT");
 
     private final ObjectMapper objectMapper;
     private final List<McpTool> tools;
@@ -31,82 +30,63 @@ public class McpServer {
         this.objectMapper = objectMapper;
         this.tools = tools;
         this.resources = resources;
+        logger.info(">>> MCP Server 초기화됨 (도구: {}개)", tools.size());
     }
 
     public void start() {
-        logger.info("MCP 서버 시작 (STDIO 모드)");
+        logger.info(">>> MCP 서버 루프 시작");
         
-        // stdout은 MCP 메시지 전용 (PrintWriter를 통해서만 출력)
-        // stderr는 로깅 전용 (logback.xml에서 설정됨)
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in, java.nio.charset.StandardCharsets.UTF_8));
-             PrintWriter writer = new PrintWriter(new java.io.OutputStreamWriter(System.out, java.nio.charset.StandardCharsets.UTF_8), true)) {
-            
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
+                line = line.trim();
+                if (line.isEmpty()) continue;
+                
                 try {
                     McpMessage request = objectMapper.readValue(line, McpMessage.class);
                     
-                    // 알림(notification)은 id가 null이므로 응답을 보내지 않음
                     if (request.getId() == null) {
                         processNotification(request);
                         continue;
                     }
                     
-                    // 요청에 대한 응답 처리
                     McpMessage response = processMessage(request);
-                    
                     if (response != null) {
-                        String responseJson = objectMapper.writeValueAsString(response);
-                        writer.println(responseJson);
-                        writer.flush();
+                        sendResponse(response, request.getMethod());
                     }
                 } catch (Exception e) {
-                    logger.error("메시지 처리 오류", e);
-                    // 요청에 대한 에러 응답 전송 (알림이 아닌 경우만)
-                    try {
-                        McpMessage request = objectMapper.readValue(line, McpMessage.class);
-                        if (request.getId() != null) {
-                            McpMessage errorResponse = createErrorResponse(request.getId(), -32603, "Internal error: " + e.getMessage());
-                            String errorJson = objectMapper.writeValueAsString(errorResponse);
-                            writer.println(errorJson);
-                            writer.flush();
-                        }
-                    } catch (Exception ex) {
-                        logger.error("에러 응답 전송 실패", ex);
-                    }
+                    logger.error(">>> 메시지 처리 오류", e);
                 }
             }
         } catch (IOException e) {
-            logger.error("입출력 오류", e);
+            logger.error(">>> 입출력 오류", e);
         }
     }
 
-    /**
-     * 알림(notification) 처리 - 응답 없음
-     */
+    private void sendResponse(McpMessage response, String method) {
+        try {
+            byte[] responseBytes = objectMapper.writeValueAsBytes(response);
+            synchronized (System.out) {
+                System.out.write(responseBytes);
+                System.out.write('\n');
+                System.out.flush();
+            }
+            logger.debug(">>> [SEND-OK] id={}, method={}", response.getId(), method);
+        } catch (IOException e) {
+            logger.error(">>> 응답 전송 실패", e);
+        }
+    }
+
     private void processNotification(McpMessage notification) {
         String method = notification.getMethod();
-        if (method == null) {
-            logger.warn("알림에 method가 없습니다");
-            return;
-        }
-        
-        switch (method) {
-            case "notifications/initialized":
-                logger.debug("클라이언트 초기화 완료 알림 수신");
-                break;
-            default:
-                logger.debug("알 수 없는 알림: {}", method);
-                break;
+        if ("notifications/initialized".equals(method)) {
+            logger.debug("클라이언트 초기화 완료");
         }
     }
 
     public McpMessage processMessage(McpMessage request) {
         String method = request.getMethod();
-        
-        if (method == null) {
-            return createErrorResponse(request.getId(), -32600, "Invalid Request: method is required");
-        }
+        if (method == null) return null;
 
         switch (method) {
             case "initialize":
@@ -127,11 +107,13 @@ public class McpServer {
     private McpMessage handleInitialize(McpMessage request) {
         Map<String, Object> result = new HashMap<>();
         result.put("protocolVersion", "2024-11-05");
-        result.put("capabilities", new HashMap<>());
-        result.put("serverInfo", Map.of(
-            "name", "cubrid-mcp",
-            "version", "1.0.0"
-        ));
+        
+        Map<String, Object> capabilities = new HashMap<>();
+        capabilities.put("tools", Map.of("listChanged", false));
+        capabilities.put("resources", Map.of("subscribe", false, "listChanged", false));
+        
+        result.put("capabilities", capabilities);
+        result.put("serverInfo", Map.of("name", "cubrid-mcp", "version", "1.0.0"));
         
         McpMessage response = new McpMessage();
         response.setId(request.getId());
@@ -145,7 +127,12 @@ public class McpServer {
                 Map<String, Object> toolInfo = new HashMap<>();
                 toolInfo.put("name", tool.getName());
                 toolInfo.put("description", tool.getDescription());
-                toolInfo.put("inputSchema", tool.getInputSchema());
+                
+                Map<String, Object> schema = tool.getInputSchema();
+                if (schema == null || schema.isEmpty()) {
+                    schema = Map.of("type", "object", "properties", new HashMap<>());
+                }
+                toolInfo.put("inputSchema", schema);
                 return toolInfo;
             })
             .collect(Collectors.toList());
@@ -161,51 +148,38 @@ public class McpServer {
 
     private McpMessage handleToolsCall(McpMessage request) {
         Map<String, Object> params = request.getParams();
-        if (params == null) {
-            return createErrorResponse(request.getId(), -32602, "Invalid params");
-        }
-
+        if (params == null) return createErrorResponse(request.getId(), -32602, "Params required");
+        
         String toolName = (String) params.get("name");
-        if (toolName == null) {
-            return createErrorResponse(request.getId(), -32602, "Tool name is required");
-        }
-
         @SuppressWarnings("unchecked")
         Map<String, Object> arguments = (Map<String, Object>) params.get("arguments");
-        if (arguments == null) {
-            arguments = new HashMap<>();
-        }
 
         McpTool tool = tools.stream()
             .filter(t -> t.getName().equals(toolName))
             .findFirst()
             .orElse(null);
 
-        if (tool == null) {
-            return createErrorResponse(request.getId(), -32601, "Tool not found: " + toolName);
-        }
+        if (tool == null) return createErrorResponse(request.getId(), -32601, "Tool not found");
 
         try {
-            Object result = tool.execute(arguments);
-            
+            Object result = tool.execute(arguments != null ? arguments : new HashMap<>());
             McpMessage response = new McpMessage();
             response.setId(request.getId());
             response.setResult(result);
             return response;
         } catch (Exception e) {
-            logger.error("Tool 실행 오류: {}", toolName, e);
-            return createErrorResponse(request.getId(), -32603, "Tool execution failed: " + e.getMessage());
+            return createErrorResponse(request.getId(), -32603, e.getMessage());
         }
     }
 
     private McpMessage handleResourcesList(McpMessage request) {
         List<Map<String, Object>> resourcesList = resources.stream()
             .map(resource -> {
-                Map<String, Object> resourceInfo = new HashMap<>();
-                resourceInfo.put("uri", resource.getUri());
-                resourceInfo.put("mimeType", resource.getMimeType());
-                resourceInfo.put("description", resource.getDescription());
-                return resourceInfo;
+                Map<String, Object> info = new HashMap<>();
+                info.put("uri", resource.getUri());
+                info.put("mimeType", resource.getMimeType());
+                info.put("description", resource.getDescription());
+                return info;
             })
             .collect(Collectors.toList());
         
@@ -220,61 +194,41 @@ public class McpServer {
 
     private McpMessage handleResourcesRead(McpMessage request) {
         Map<String, Object> params = request.getParams();
-        if (params == null) {
-            return createErrorResponse(request.getId(), -32602, "Invalid params");
-        }
-
+        if (params == null) return createErrorResponse(request.getId(), -32602, "Params required");
+        
         String uri = (String) params.get("uri");
-        if (uri == null) {
-            return createErrorResponse(request.getId(), -32602, "URI is required");
-        }
-
         McpResource resource = resources.stream()
-            .filter(r -> {
-                String resourceUri = r.getUri();
-                // 패턴 매칭 (cubrid://schema/{schema}/{table})
-                if (resourceUri.contains("{") && uri.startsWith(resourceUri.substring(0, resourceUri.indexOf("{")))) {
-                    return true;
-                }
-                return resourceUri.equals(uri);
-            })
+            .filter(r -> r.getUri().equals(uri) || (r.getUri().contains("{") && uri.startsWith(r.getUri().substring(0, r.getUri().indexOf("{")))))
             .findFirst()
             .orElse(null);
 
-        if (resource == null) {
-            return createErrorResponse(request.getId(), -32601, "Resource not found: " + uri);
-        }
+        if (resource == null) return createErrorResponse(request.getId(), -32601, "Resource not found");
 
         try {
-            String content;
-            if (resource instanceof com.cubrid.mcp.mcp.resources.TableResource) {
-                content = ((com.cubrid.mcp.mcp.resources.TableResource) resource).getContent(uri);
-            } else {
-                content = resource.getContent();
-            }
+            String content = (resource instanceof com.cubrid.mcp.mcp.resources.TableResource) ? 
+                             ((com.cubrid.mcp.mcp.resources.TableResource) resource).getContent(uri) : resource.getContent();
+            
+            Map<String, Object> contentMap = new HashMap<>();
+            contentMap.put("uri", uri);
+            contentMap.put("mimeType", resource.getMimeType());
+            contentMap.put("text", content);
             
             Map<String, Object> result = new HashMap<>();
-            result.put("contents", List.of(Map.of(
-                "uri", uri,
-                "mimeType", resource.getMimeType(),
-                "text", content
-            )));
+            result.put("contents", List.of(contentMap));
             
             McpMessage response = new McpMessage();
             response.setId(request.getId());
             response.setResult(result);
             return response;
         } catch (Exception e) {
-            logger.error("Resource 읽기 오류: {}", uri, e);
-            return createErrorResponse(request.getId(), -32603, "Resource read failed: " + e.getMessage());
+            return createErrorResponse(request.getId(), -32603, e.getMessage());
         }
     }
 
     private McpMessage createErrorResponse(Object id, int code, String message) {
         McpMessage response = new McpMessage();
         response.setId(id);
-        McpMessage.McpError error = new McpMessage.McpError(code, message);
-        response.setError(error);
+        response.setError(new McpMessage.McpError(code, message));
         return response;
     }
 }
