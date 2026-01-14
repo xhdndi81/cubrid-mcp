@@ -24,6 +24,9 @@ public class CubridMcpApplication implements CommandLineRunner {
         // Spring Boot 애플리케이션 초기화
         SpringApplication app = new SpringApplication(CubridMcpApplication.class);
         
+        // 배너 비활성화 (stdout은 MCP 메시지 전용이므로 배너 출력 금지)
+        app.setBannerMode(org.springframework.boot.Banner.Mode.OFF);
+        
         // 로깅 설정: stdout은 MCP 메시지 전용이므로 stderr로만 로깅
         System.setOut(System.out); // stdout은 MCP 메시지용
         System.setErr(System.err); // stderr는 로깅용

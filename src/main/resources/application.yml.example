@@ -1,6 +1,9 @@
 spring:
   application:
     name: cubrid-mcp
+  # 배너 비활성화 (stdout은 MCP 메시지 전용)
+  main:
+    banner-mode: off
 
 # CUBRID 데이터베이스 설정
 # 환경변수로도 설정 가능: CUBRID_JDBC_URL, CUBRID_USER, CUBRID_PASSWORD
