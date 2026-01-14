@@ -58,6 +58,7 @@ test-mcp-server.js
 
 # Package files
 *.jar
+!cubrid-mcp.jar
 *.war
 *.ear
 *.zip

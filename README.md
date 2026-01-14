@@ -32,6 +32,19 @@ CUBRID 데이터베이스에 대한 [Model Context Protocol (MCP)](https://model
 
 ## 🚀 시작하기
 
+### ⚡ 빠른 시작 (컴파일된 JAR 사용) ⭐
+
+컴파일을 직접 할 필요 없이 루트 디렉토리에 포함된 `cubrid-mcp.jar` 파일을 바로 사용할 수 있습니다.
+
+1.  **Java 17 이상 설치** 확인
+2.  **데이터베이스 정보 설정** (환경변수 또는 `application.yml`)
+3.  **실행**:
+    ```bash
+    java -Dfile.encoding=UTF-8 -jar cubrid-mcp.jar
+    ```
+
+---
+
 ### 요구사항
 
 - **Java**: 17 이상
@@ -218,8 +231,9 @@ java -jar target/cubrid-mcp-1.0.0-SNAPSHOT.jar
     "cubrid": {
       "command": "java",
       "args": [
+        "-Dfile.encoding=UTF-8",
         "-jar",
-        "C:/path/to/cubrid-mcp/target/cubrid-mcp-1.0.0-SNAPSHOT.jar"
+        "C:/path/to/cubrid-mcp/cubrid-mcp.jar"
       ],
       "env": {
         "CUBRID_JDBC_URL": "jdbc:cubrid:localhost:33000:demodb:dba:password:?charSet=utf-8",
@@ -252,8 +266,9 @@ JAR 파일 경로에 공백이 포함되어 있으면 Java가 파일을 찾지 �
     "cubrid": {
       "command": "java",
       "args": [
+        "-Dfile.encoding=UTF-8",
         "-jar",
-        "/absolute/path/to/cubrid-mcp/target/cubrid-mcp-1.0.0-SNAPSHOT.jar"
+        "/absolute/path/to/cubrid-mcp/cubrid-mcp.jar"
       ],
       "env": {
         "CUBRID_JDBC_URL": "jdbc:cubrid:localhost:33000:demodb:dba:password:?charSet=utf-8",
