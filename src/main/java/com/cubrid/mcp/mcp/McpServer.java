@@ -36,9 +36,8 @@ public class McpServer {
     public void start() {
         logger.info("MCP 서버 시작 (STDIO 모드)");
         
-        // 로깅은 stderr로만 출력 (stdout은 MCP 메시지 전용)
-        System.setErr(System.err); // stderr는 로깅용
-        
+        // stdout은 MCP 메시지 전용 (PrintWriter를 통해서만 출력)
+        // stderr는 로깅 전용 (logback.xml에서 설정됨)
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in, java.nio.charset.StandardCharsets.UTF_8));
              PrintWriter writer = new PrintWriter(new java.io.OutputStreamWriter(System.out, java.nio.charset.StandardCharsets.UTF_8), true)) {
             
@@ -46,6 +45,14 @@ public class McpServer {
             while ((line = reader.readLine()) != null) {
                 try {
                     McpMessage request = objectMapper.readValue(line, McpMessage.class);
+                    
+                    // 알림(notification)은 id가 null이므로 응답을 보내지 않음
+                    if (request.getId() == null) {
+                        processNotification(request);
+                        continue;
+                    }
+                    
+                    // 요청에 대한 응답 처리
                     McpMessage response = processMessage(request);
                     
                     if (response != null) {
@@ -55,12 +62,15 @@ public class McpServer {
                     }
                 } catch (Exception e) {
                     logger.error("메시지 처리 오류", e);
-                    // 에러 응답 전송
+                    // 요청에 대한 에러 응답 전송 (알림이 아닌 경우만)
                     try {
-                        McpMessage errorResponse = createErrorResponse(null, -32603, "Internal error: " + e.getMessage());
-                        String errorJson = objectMapper.writeValueAsString(errorResponse);
-                        writer.println(errorJson);
-                        writer.flush();
+                        McpMessage request = objectMapper.readValue(line, McpMessage.class);
+                        if (request.getId() != null) {
+                            McpMessage errorResponse = createErrorResponse(request.getId(), -32603, "Internal error: " + e.getMessage());
+                            String errorJson = objectMapper.writeValueAsString(errorResponse);
+                            writer.println(errorJson);
+                            writer.flush();
+                        }
                     } catch (Exception ex) {
                         logger.error("에러 응답 전송 실패", ex);
                     }
@@ -68,6 +78,26 @@ public class McpServer {
             }
         } catch (IOException e) {
             logger.error("입출력 오류", e);
+        }
+    }
+
+    /**
+     * 알림(notification) 처리 - 응답 없음
+     */
+    private void processNotification(McpMessage notification) {
+        String method = notification.getMethod();
+        if (method == null) {
+            logger.warn("알림에 method가 없습니다");
+            return;
+        }
+        
+        switch (method) {
+            case "notifications/initialized":
+                logger.debug("클라이언트 초기화 완료 알림 수신");
+                break;
+            default:
+                logger.debug("알 수 없는 알림: {}", method);
+                break;
         }
     }
 

@@ -1,8 +1,10 @@
 package com.cubrid.mcp.mcp;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.Map;
 
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class McpMessage {
     @JsonProperty("jsonrpc")
     private String jsonrpc = "2.0";
