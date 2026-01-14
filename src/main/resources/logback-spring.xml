@@ -1,13 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-    <!-- 모든 로그는 stderr로만 출력하여 stdout(MCP 통로)과 격리 -->
-    <appender name="STDERR" class="ch.qos.logback.core.ConsoleAppender">
-        <target>System.err</target>
-        <encoder>
-            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{20} - %msg%n</pattern>
-        </encoder>
-    </appender>
-
+    <!-- 모든 콘솔 출력을 중단합니다. -->
+    <!-- 로그는 오직 파일(cubrid-mcp.log)에서만 확인 가능합니다. -->
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>cubrid-mcp.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
@@ -19,14 +13,11 @@
         </encoder>
     </appender>
 
-    <!-- 중복 출력 방지를 위해 additivity="false" 설정 -->
-    <logger name="com.cubrid.mcp" level="DEBUG" additivity="false">
-        <appender-ref ref="STDERR" />
-        <appender-ref ref="FILE" />
-    </logger>
-
     <root level="INFO">
-        <appender-ref ref="STDERR" />
         <appender-ref ref="FILE" />
     </root>
+
+    <logger name="com.cubrid.mcp" level="DEBUG" additivity="false">
+        <appender-ref ref="FILE" />
+    </logger>
 </configuration>
