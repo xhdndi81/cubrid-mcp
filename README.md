@@ -32,16 +32,18 @@ CUBRID 데이터베이스에 대한 [Model Context Protocol (MCP)](https://model
 
 ## 🚀 시작하기
 
-### ⚡ 빠른 시작 (컴파일된 JAR 사용) ⭐
+### ⚡ 빠른 시작 (컴파일된 JAR 바로 사용하기) ⭐
 
-컴파일을 직접 할 필요 없이 루트 디렉토리에 포함된 `cubrid-mcp.jar` 파일을 바로 사용할 수 있습니다.
+이 저장소의 루트에 포함된 `cubrid-mcp.jar` 파일을 다운로드하여 Cursor, Claude Desktop 등 MCP를 지원하는 에이전트 도구에서 컴파일 없이 즉시 사용할 수 있습니다.
 
-1.  **Java 17 이상 설치** 확인
-2.  **데이터베이스 정보 설정** (환경변수 또는 `application.yml`)
-3.  **실행**:
-    ```bash
-    java -Dfile.encoding=UTF-8 -jar cubrid-mcp.jar
-    ```
+1.  **JAR 파일 준비**: `cubrid-mcp.jar` 파일을 다운로드하여 로컬의 적당한 경로에 위치시킵니다. (Java 17 이상 필요)
+2.  **에이전트 도구 등록**: Cursor나 Claude Desktop의 MCP 설정에서 새 서버를 추가하고 아래 명령어를 입력합니다.
+    - **Command**: `java`
+    - **Arguments**: `-Dfile.encoding=UTF-8 -jar "C:/다운로드경로/cubrid-mcp.jar"`
+3.  **환경변수 설정**: 도구의 설정 화면(`env`)에서 아래 정보를 직접 입력합니다. (소스 코드를 수정하거나 컴파일할 필요가 없습니다.)
+    - `CUBRID_JDBC_URL`: `jdbc:cubrid:아이피:포트:DB명:::?charSet=utf-8`
+    - `CUBRID_USER`: `dba`
+    - `CUBRID_PASSWORD`: `비밀번호`
 
 ---
 
